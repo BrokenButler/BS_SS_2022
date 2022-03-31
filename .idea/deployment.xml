@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="Docker" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="Docker">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/PrakBS22" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="Docker-cmake (5f94b3e6-81cf-46a6-b55b-d80fffc69a39)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/PrakBS22" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-docker-debug" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
