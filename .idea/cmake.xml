@@ -2,7 +2,7 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
-      <configuration PROFILE_NAME="Docker-Debug" ENABLED="true" CONFIG_NAME="Debug" TOOLCHAIN_NAME="Docker-cmake" />
+      <configuration PROFILE_NAME="Docker-Debug" ENABLED="true" CONFIG_NAME="Debug" TOOLCHAIN_NAME="Docker-CMake" />
     </configurations>
   </component>
 </project>
