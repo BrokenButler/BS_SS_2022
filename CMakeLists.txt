@@ -3,4 +3,4 @@ project(BS_SS_2022 C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(TCPS main.c main.h keyValStore.c keyValStore.h sub.c sub.h)
+add_executable(TCPS main.c main.h keyValStore.c keyValStore.h sub.c sub.h hashTable.c hashTable.h fnv.c fnv.h)
