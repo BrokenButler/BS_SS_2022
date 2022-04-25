@@ -11,11 +11,11 @@ include_directories(socket)
 
 add_executable(TCPS
         commandHandling/commandHandler.h
-        keyValueStore.h
+        keyValueStore/keyValueStore.h
         server/server.h
         socket/socketHandler.h
         commandHandling/commandHandler.c
-        keyValueStore.c
+        keyValueStore/keyValueStore.c
         server/server.c
         socket/socketHandler.c
         main.c)
