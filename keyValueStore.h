@@ -2,8 +2,11 @@
 // Created by BrokenButler on 01/04/2022.
 //
 
-#ifndef BS_SS_2022_KEYVALSTORE_H
-#define BS_SS_2022_KEYVALSTORE_H
+#ifndef BS_SS_2022_KEYVALUESTORE_H
+#define BS_SS_2022_KEYVALUESTORE_H
+
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct Node {
     char *key;
@@ -17,4 +20,4 @@ int get(char *key, char *result);
 
 int del(char *key);
 
-#endif //BS_SS_2022_KEYVALSTORE_H
+#endif //BS_SS_2022_KEYVALUESTORE_H

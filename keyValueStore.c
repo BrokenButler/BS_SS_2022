@@ -2,9 +2,7 @@
 // Created by BrokenButler on 01/04/2022.
 //
 
-#include <stdlib.h>
-#include <string.h>
-#include "keyValStore.h"
+#include "keyValueStore.h"
 
 Node *head = NULL;
 

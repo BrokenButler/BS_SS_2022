@@ -1,22 +1,38 @@
 //
-// Created by BrokenButler on 31/03/2022.
+// Created by BrokenButler on 25/04/2022.
 //
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "main.h"
-#include "hashTable.h"
-#include "fnv.h"
-#include "sub.h"
+#include "server.h"
 
 int main() {
-    Ht_table *table = ht_create_table(10, (unsigned long (*)(char *, unsigned long)) fnv1a64);
-    ht_insert(table, "Hello", "World");
+    // socket descriptor
+    int serverSocket;
+    int clientSocket;
 
-    void *data = ht_search(table, "Hello");
-    ht_insert(table, "Hello", "Hello World!");
+    // Server IP-Address Info
+    struct sockaddr_in serverAddress;
 
-    printf("%s\n", (char *) ht_search(table, "Hello"));
-    printf("%s\n", (char *) data);
+    // Client IP-Address Info
+    struct sockaddr_in clientAddress;
+
+    // semaphore operations
+    // vrijlating (free) operation
+    struct sembuf *vOperation;
+    // passeren (lock) operation
+    struct sembuf *pOperation;
+
+    socklen_t clientAddressLength;
+
+    serverSocket = createSocket(&serverSocket);
+
+    initializeSocket(&serverAddress);
+
+    bindSocket(serverSocket, serverAddress);
+
+    waitForClients(serverSocket);
+
+    startService(clientAddressLength, &clientAddress, clientSocket, serverSocket, &vOperation, &pOperation);
+
+
     return 0;
 }
