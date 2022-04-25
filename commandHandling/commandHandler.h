@@ -24,8 +24,7 @@ void readMessage(char *msg, int clientSocket);
 void sendMessage(char *msg, int clientSocket);
 
 
-int executeCommand(int clientSocket, struct commandRequest commandHandler, struct sembuf *vOperation,
-                   struct sembuf *pOperation);
+int executeCommand(int clientSocket, struct commandRequest commandHandler);
 
 int isEqual(char *str1, char *str2);
 

@@ -7,6 +7,6 @@
 
 // start server
 void startService(socklen_t clientAddressLength, struct sockaddr_in *clientAddress,
-                  int clientSocket, int serverSocket, struct sembuf *vOperation, struct sembuf *pOperation);
+                  int clientSocket, int serverSocket);
 
 #endif //SERVER_SERVER_H

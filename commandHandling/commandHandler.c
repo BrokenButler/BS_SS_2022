@@ -29,8 +29,7 @@ int removeTrailingLineBreak(char *input) {
 }
 
 
-int executeCommand(int clientSocket, struct commandRequest commandHandler, struct sembuf *vOperation,
-                   struct sembuf *pOperation) {
+int executeCommand(int clientSocket, struct commandRequest commandHandler) {
 
 
     if (strcmp("PUT", commandHandler.command) == 0) {

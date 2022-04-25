@@ -1,7 +1,7 @@
 #include "server.h"
 
 void startService(socklen_t clientAddressLength, struct sockaddr_in *clientAddress,
-                  int clientSocket, int serverSocket, struct sembuf *vOperation, struct sembuf *pOperation) {
+                  int clientSocket, int serverSocket) {
     while (1) {
         clientAddressLength = sizeof(clientAddress);
 
@@ -20,7 +20,7 @@ void startService(socklen_t clientAddressLength, struct sockaddr_in *clientAddre
             // \n\r rauswerfen
             removeTrailingLineBreak((char *) &msg);
             readCommand((char *) &msg, &commandHandler);
-            executeCommand(clientSocket, commandHandler, &vOperation, &pOperation);
+            executeCommand(clientSocket, commandHandler);
 
         }
         closeConnection(clientSocket);
