@@ -9,4 +9,4 @@
 void startService(socklen_t clientAddressLength, struct sockaddr_in *clientAddress,
                   int clientSocket, int serverSocket);
 
-#endif //SERVER_SERVER_H
+#endif //SERVER_H

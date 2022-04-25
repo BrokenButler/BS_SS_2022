@@ -15,12 +15,6 @@ int main() {
     // Client IP-Address Info
     struct sockaddr_in clientAddress;
 
-    // semaphore operations
-    // vrijlating (free) operation
-    struct sembuf *vOperation;
-    // passeren (lock) operation
-    struct sembuf *pOperation;
-
     socklen_t clientAddressLength;
 
     serverSocket = createSocket(&serverSocket);
@@ -31,7 +25,7 @@ int main() {
 
     waitForClients(serverSocket);
 
-    startService(clientAddressLength, &clientAddress, clientSocket, serverSocket, &vOperation, &pOperation);
+    startService(clientAddressLength, &clientAddress, clientSocket, serverSocket);
 
 
     return 0;
