@@ -61,9 +61,9 @@ int init_semaphore() {
 void startsocket() {
 
     init_semaphore();
-    initialize();  //KeyValStore wird initialisiert
+    initialize();
 
-    int shm_id, shm_id_transblock, shm_id_blockingclient, shm_id_notify, *shm_count, shm_count_id;    //Shared Memory Segment wird angelegt // count neu für Aufgabe 5
+    int shm_id, shm_id_transblock, shm_id_blockingclient, shm_id_notify, *shm_count, shm_count_id;
     struct keyval *shar_mem;
 
     shm_id = shmget(IPC_PRIVATE, SEGMENT_SIZE, IPC_CREAT | 0644);
@@ -71,15 +71,14 @@ void startsocket() {
     shm_id_blockingclient = shmget(IPC_PRIVATE, SEGMENT_SIZE, IPC_CREAT | 0644);
 
     shar_mem = (struct keyval *) shmat(shm_id, 0, 0);
-    // Integer Variable für das Hochzählen der Clients wird erstellt und einem neu angelegten Shared Memory hinzugefügt
     shm_count_id = shmget(IPC_PRIVATE, SEGMENT_SIZE, IPC_CREAT | 0644);
     shm_count = (int *) shmat(shm_count_id, 0, 0);
-    *shm_count = 0; //Auf 0 setzten, da am Anfang 0 Clients verbunden sind
+    *shm_count = 0;
 
     int *transactionblock = (int *) shmat(shm_id_transblock, 0, 0);
     int *blockingclient = (int *) shmat(shm_id_blockingclient, 0, 0);
 
-    int msid = msgget(1, IPC_CREAT | 0644);     //Nachrichtenwarteschlange anlegen
+    int msid = msgget(1, IPC_CREAT | 0644);
 
 
     if (shm_id == -1) {
@@ -88,13 +87,13 @@ void startsocket() {
     }
 
 
-    int rfd; // Rendevouz-Descriptor
-    int cfd; // Verbindungs-Descriptor
+    int rfd;
+    int cfd;
 
-    struct sockaddr_in client; // Socketadresse eines Clients
-    socklen_t client_len; // Länge der Client-Daten
-    char in[BUFSIZE]; // Daten vom Client an den Server
-    int bytes_read; // Anzahl der Bytes, die der Client geschickt hat
+    struct sockaddr_in client;
+    socklen_t client_len;
+    char in[BUFSIZE];
+    int bytes_read;
 
 
     // Socket erstellen
@@ -132,18 +131,16 @@ void startsocket() {
     // Verbindung eines Clients wird entgegengenommen
     Listen:
     printf("Warte auf eingehende Verbindungen...\n");
-    printf("Client %i\n",
-           *shm_count); //Für Aufgabe 5 - Zeigt an, der wie vielte Client sich gerade verbindet *nicht notwendig*
+    printf("Client %i\n", *shm_count);
     int c = sizeof(struct sockaddr_in);
     cfd = accept(rfd, (struct sockaddr *) &client,
-                 (socklen_t *) &c); //Zustand blockiert, da auf User input (verbinden des Clients) gewartet wird
-    *shm_count = *shm_count + 1; /**Für Aufgabe 5**/ // Wird hochgezählt, sobald sich ein Client verbindet
+                 (socklen_t *) &c);
+    *shm_count = *shm_count + 1;
 
 
     int pid = fork();
     if (pid < 0) {
-        *shm_count = *shm_count -
-                     1; /**Für Aufgabe 5**/ // Solle es einen Fehler geben, wird der zuvor erhöhte Counter wieder runtergezählt
+        *shm_count = *shm_count - 1;
         printf("Fork fehlgeschlagen. Konnte keinen neuen Prozess für den Client erstellen.");
         close(cfd);
         close(rfd);
@@ -169,38 +166,34 @@ void startsocket() {
 
         while (ENDLOSSCHLEIFE) {
 
-            // Lesen von Daten, die der Client schickt
             bzero(in, BUFSIZE);
-            //Zustand blockiert, da auf USER Input gewartet wird
             bytes_read = read(cfd, in, BUFSIZE);
 
-            struct sembuf enter, leave; // Structs für den Semaphor
-            enter.sem_num = leave.sem_num = 0;  // Semaphor 0 in der Gruppe
+            struct sembuf enter, leave;
+            enter.sem_num = leave.sem_num = 0;
             enter.sem_flg = leave.sem_flg = SEM_UNDO;
-            enter.sem_op = -1; // blockieren, DOWN-Operation
-            leave.sem_op = 1;   // freigeben, UP-Operation
+            enter.sem_op = -1;
+            leave.sem_op = 1;
 
-            semop(sem_id, &enter, 1); //Kritischer Bereich 1 Anfang
+            semop(sem_id, &enter, 1);
 
             if (bytes_read > 0) {
 
                 if (*transactionblock == 0 ||
-                    cfd == *blockingclient) { //Zustand blockiert, wenn BEG bei anderem Client gemacht wurde
+                    cfd == *blockingclient) {
 
-                    if (strncmp("NUMCLIENTS", in, 10) == 0) { /**Für Aufgabe 5**/
+                    if (strncmp("NUMCLIENTS", in, 10) == 0) {
                         sprintf(NUMCLIENTSSTR, "%i",
-                                *shm_count); //Der Integerwert von shm_count wird in einen String überschrieben
+                                *shm_count);
                         memset(&message[0], 0,
-                               sizeof(message));   //Ein leerer String zum füllen - Für Formatierung / Schönheit
+                               sizeof(message));
                         strncat(message, NUMCLIENTSSTR,
-                                strlen(NUMCLIENTSSTR)); //leerer String wird mit dem String der Anzahl der Clients gefüllt
-                        strncat(message, "\n", 1); //Für neue Zeile
-                        sendMessage(cfd, message,
-                                    strlen(message)); //Der zusammengesetzte String wird and den Client gesendet
+                                strlen(NUMCLIENTSSTR));
+                        strncat(message, "\n", 1);
+                        sendMessage(cfd, message, strlen(message));
 
                     } else if (strncmp("QUIT", in, 4) == 0) {
-                        *shm_count = *shm_count -
-                                     1; /**Für Aufgabe 5**/ // - Sobald jemand die Verbindung beendet, wird der Counter runtergezählt
+                        *shm_count = *shm_count - 1;
                         printf("Socket wird geschlossen...\n");
                         sendMessage(cfd, "Socket wird geschlossen\n", 24);
                         shutdown(cfd, SHUT_RDWR);
@@ -211,15 +204,12 @@ void startsocket() {
                     } else if (strncmp("GET", in, 3) == 0) {
                         readcommand(in);
                         char *res[40];
-                        memset(res[0], 0, sizeof(res)); //result wird gelöscht
-                        //semop(sem_id, &enter, 1); //KB 04 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil e)
+                        memset(res[0], 0, sizeof(res));
                         printf("Return-Code: %i \n", get(key, *res));
-                        //semop(sem_id, &leave, 1); //KB 04 Ende - Verbesserungsvorschlag Aufgabe 4 Teil e)
                         printf("GET:%s:%s \n", key, *res);
 
                         memset(&message[0], 0, sizeof(message));
-                        strncat(message, "GET:",
-                                6);                                                                //Message an den Client wird gebaut
+                        strncat(message, "GET:", 6);
                         strncat(message, key, 20);
                         strncat(message, ":", 1);
                         strncat(message, *res, 20);
@@ -229,9 +219,7 @@ void startsocket() {
 
                     } else if (strncmp("PUT", in, 3) == 0) {
                         readcommand(in);
-                        //semop(sem_id, &enter, 1); //KB 02 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil d)
                         printf("%d\n", put(key, val));
-                        //semop(sem_id, &leave, 1); //KB 02 Ende - Verbesserungsvorschlag Aufgabe 4 Teil d)
                         printf("PUT:%s:%s\n", key, val);
 
                         memset(&message[0], 0, sizeof(message));
@@ -242,9 +230,7 @@ void startsocket() {
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
-                        msgsnd(msid, message, strlen(message),
-                               0);                                    //Nachrichtenwarteschlange
-
+                        msgsnd(msid, message, strlen(message), 0);
 
 
                     } else if (strncmp("DEL", in, 3) == 0) {
@@ -254,14 +240,12 @@ void startsocket() {
                         strncat(message, "DEL:", 6);
                         strncat(message, key, 20);
                         strncat(message, ":", 1);
-                        //semop(sem_id, &enter, 1); //KB 03 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil d)
                         if (del(key) == 0) {
                             strncat(message, "key_deleted", 11);
                             printf("Key %s Deleted\n", key);
                         } else {
                             strncat(message, "key_nonexistent", 16);
                         }
-                        //semop(sem_id, &leave, 1); //KB 03 Ende - Verbesserungsvorschlag Aufgabe 4 Teil d)
 
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
@@ -284,7 +268,7 @@ void startsocket() {
                         }
 
                         char notification[50];
-                        int subPid = fork();  //Neuer Prozess, welcher überwacht, ob an abonnierten Keys Änderungen vorgenommen werden
+                        int subPid = fork();
                         if (subPid == 0) {
                             while (ENDLOSSCHLEIFE) {
                                 int receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
