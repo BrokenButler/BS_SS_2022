@@ -2,8 +2,7 @@
 
 
 void initialize() {
-    for (int i = 0; i <
-                    storelength; i++) {                                                                             //keyvalstore wird mit Elementen aufgefüllt
+    for (int i = 0; i < storelength; i++) {
         strcpy(keyvalstore[i].key, "*");
         strcpy(keyvalstore[i].val, "empty");
     }
@@ -17,8 +16,7 @@ void initialize() {
 
     keyvalPointer = (struct keyval *) shmat(shm_id_store, NULL, 0);
 
-    for (int i = 0; i <
-                    storelength; i++) {                                                                                 //keyvalstore Pointer wird mit Elementen aufgefüllt
+    for (int i = 0; i < storelength; i++) {
         strcpy(keyvalPointer[i].key, "*");
         strcpy(keyvalPointer[i].val, "empty");
 

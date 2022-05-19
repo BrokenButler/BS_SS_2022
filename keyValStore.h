@@ -6,11 +6,11 @@
 #include <sys/shm.h>
 #include <stdlib.h>
 
-#define storelength 100
+#define storelength 10
 
 struct keyval {
-    char key[30];
-    char val[80];
+    char key[100];
+    char val[100];
 };
 
 struct keyval keyvalstore[storelength];

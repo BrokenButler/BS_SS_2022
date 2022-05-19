@@ -1,18 +1,18 @@
 #include "sub.h"
 
-char key[20];
-char val[20];
+char key[100];
+char val[100];
 
 char NUMCLIENTSSTR[5];
 
-char message[50];
+char message[100];
 struct sembuf semaphore;
 static int sem_id;
 
 
 int readcommand(char *input) {
-    memset(&key[0], 0, sizeof(key));  //Key und Value werden geleert
-    memset(&val[0], 0, sizeof(val));
+    memset(key, 0, sizeof(key));  //Key und Value werden geleert
+    memset(val, 0, sizeof(val));
 
     char delimiter[] = " ,:";
     char *ptr;
@@ -25,6 +25,9 @@ int readcommand(char *input) {
             strcpy(key, ptr);
         } else if (counter == 2) {
             strcpy(val, ptr);
+        } else if (counter > 2) {
+            strcat(val, " ");
+            strcat(val, ptr);
         }
         counter++;
 
@@ -92,7 +95,7 @@ void startsocket() {
 
     struct sockaddr_in client;
     socklen_t client_len;
-    char in[BUFSIZE];
+    char input[BUFSIZE];
     int bytes_read;
 
 
@@ -156,18 +159,17 @@ void startsocket() {
             char key[20];
         };
 
-        struct pubsubkey subbedkeys[20];                                                                                    //Array mit Keys, die der Client abonniert hat
+        struct pubsubkey subbedkeys[20];
 
-        for (int i = 0; i <
-                        20; i++) {                                                                                      //subbedkeys wird mit Elementen aufgefüllt
+        for (int i = 0; i < 20; i++) {
             strcpy(subbedkeys[i].key, "*");
         }
 
 
         while (ENDLOSSCHLEIFE) {
 
-            bzero(in, BUFSIZE);
-            bytes_read = read(cfd, in, BUFSIZE);
+            bzero(input, BUFSIZE);
+            bytes_read = read(cfd, input, BUFSIZE);
 
             struct sembuf enter, leave;
             enter.sem_num = leave.sem_num = 0;
@@ -175,24 +177,19 @@ void startsocket() {
             enter.sem_op = -1;
             leave.sem_op = 1;
 
-            semop(sem_id, &enter, 1);
-
             if (bytes_read > 0) {
 
                 if (*transactionblock == 0 ||
                     cfd == *blockingclient) {
 
-                    if (strncmp("NUMCLIENTS", in, 10) == 0) {
-                        sprintf(NUMCLIENTSSTR, "%i",
-                                *shm_count);
-                        memset(&message[0], 0,
-                               sizeof(message));
-                        strncat(message, NUMCLIENTSSTR,
-                                strlen(NUMCLIENTSSTR));
+                    if (strncmp("NUMCLIENTS", input, 10) == 0) {
+                        sprintf(NUMCLIENTSSTR, "%i", *shm_count);
+                        memset(&message[0], 0, sizeof(message));
+                        strncat(message, NUMCLIENTSSTR, strlen(NUMCLIENTSSTR));
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
-                    } else if (strncmp("QUIT", in, 4) == 0) {
+                    } else if (strncmp("QUIT", input, 4) == 0) {
                         *shm_count = *shm_count - 1;
                         printf("Socket wird geschlossen...\n");
                         sendMessage(cfd, "Socket wird geschlossen\n", 24);
@@ -201,28 +198,32 @@ void startsocket() {
                         fflush(stdout);
                         exit(0);
 
-                    } else if (strncmp("GET", in, 3) == 0) {
-                        readcommand(in);
-                        char *res[40];
-                        memset(res[0], 0, sizeof(res));
-                        printf("Return-Code: %i \n", get(key, *res));
-                        printf("GET:%s:%s \n", key, *res);
+                    } else if (strncmp("GET", input, 3) == 0) {
+                        readcommand(input);
+                        char res[100] = "Test";
+                        memset(res, 0, sizeof(res));
+                        semop(sem_id, &enter, 1);
+                        printf("Return-Code: %i \n", get(key, res));
+                        semop(sem_id, &leave, 1);
+                        printf("GET:%s:%s \n", key, res);
 
-                        memset(&message[0], 0, sizeof(message));
+                        memset(message, 0, sizeof(message));
                         strncat(message, "GET:", 6);
                         strncat(message, key, 20);
                         strncat(message, ":", 1);
-                        strncat(message, *res, 20);
+                        strncat(message, res, 20);
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
 
-                    } else if (strncmp("PUT", in, 3) == 0) {
-                        readcommand(in);
+                    } else if (strncmp("PUT", input, 3) == 0) {
+                        readcommand(input);
+                        semop(sem_id, &enter, 1);
                         printf("%d\n", put(key, val));
+                        semop(sem_id, &leave, 1);
                         printf("PUT:%s:%s\n", key, val);
 
-                        memset(&message[0], 0, sizeof(message));
+                        memset(message, 0, sizeof(message));
                         strncat(message, "PUT:", 6);
                         strncat(message, key, 30);
                         strncat(message, ":", 1);
@@ -233,32 +234,34 @@ void startsocket() {
                         msgsnd(msid, message, strlen(message), 0);
 
 
-                    } else if (strncmp("DEL", in, 3) == 0) {
-                        readcommand(in);
+                    } else if (strncmp("DEL", input, 3) == 0) {
+                        readcommand(input);
 
-                        memset(&message[0], 0, sizeof(message));
+                        memset(message, 0, sizeof(message));
                         strncat(message, "DEL:", 6);
                         strncat(message, key, 20);
                         strncat(message, ":", 1);
+                        semop(sem_id, &enter, 1);
                         if (del(key) == 0) {
                             strncat(message, "key_deleted", 11);
                             printf("Key %s Deleted\n", key);
                         } else {
                             strncat(message, "key_nonexistent", 16);
                         }
+                        semop(sem_id, &leave, 1);
 
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
                         msgsnd(msid, message, strlen(message), 0);
 
-                    } else if (strncmp("SUB", in, 3) == 0) {
-                        readcommand(in);
+                    } else if (strncmp("SUB", input, 3) == 0) {
+                        readcommand(input);
 
                         for (int i = 0; i < 20; i++) {
                             if ((strcmp(subbedkeys[i].key, "*") == 0)) {
                                 strcpy(subbedkeys[i].key, key);
-                                memset(&message[0], 0, sizeof(message));
+                                memset(message, 0, sizeof(message));
                                 strncat(message, "SUB:", 6);
                                 strncat(message, key, 20);
                                 strncat(message, "\n", 1);
@@ -288,11 +291,11 @@ void startsocket() {
                             }
                         }
 
-                    } else if (strncmp("BEG", in, 3) == 0) {
+                    } else if (strncmp("BEG", input, 3) == 0) {
                         *transactionblock = 1;
                         *blockingclient = cfd;
                         sendMessage(cfd, "Begin Transaction\n", 18);
-                    } else if (strncmp("END", in, 3) == 0) {
+                    } else if (strncmp("END", input, 3) == 0) {
                         *transactionblock = 0;
                         *blockingclient = 0;
                         sendMessage(cfd, "Transaction ended\n", 18);
@@ -311,7 +314,7 @@ void startsocket() {
         goto Listen;
     }
     shmdt(shm_count);
-    shmdt(shar_mem);                                                                                                    //Shared Memory Segmente werden entkoppelt
+    shmdt(shar_mem);
     shmctl(shm_id, IPC_RMID, 0);
     shmctl(shm_id_transblock, IPC_RMID, 0);
     shmctl(shm_id_blockingclient, IPC_RMID, 0);
