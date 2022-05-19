@@ -1,6 +1,7 @@
-#include "keyValueStore.h"
+#include "keyValStore.h"
 
-void init_store() {
+
+void initialize() {
     for (int i = 0; i <
                     storelength; i++) {                                                                             //keyvalstore wird mit Elementen aufgefüllt
         strcpy(keyvalstore[i].key, "*");
@@ -24,34 +25,38 @@ void init_store() {
     }
 }
 
+
 int put(char *key, char *value) {
 
     for (int i = 0;
-         i < storelength; i++) {
+         i < storelength; i++) {  // prüfe, ob key bereits vorhanden ist. Falls ja wird das Objekt überschrieben
 
         if (strcmp(keyvalPointer[i].key, key) == 0) {
-            char *old_value = keyvalPointer[i].val;
             strcpy(keyvalPointer[i].key, key);
             strcpy(keyvalPointer[i].val, value);
 
-            printf("Value Overridden: %s -> %s\n", old_value, value);
+            printf("Objekt ueberschrieben an Stelle: %i\n", i);
 
             return 1;
         }
     }
+
+
     for (int i = 0; i < storelength; i++) {
         if (strcmp(keyvalPointer[i].key, "*") == 0) {
             strcpy(keyvalPointer[i].key, key);
             strcpy(keyvalPointer[i].val, value);
 
-            printf("Value inserted\n");
+            printf("Objekt eingefuegt an Stelle: %i\n", i);
 
-            return 0;
+
+            return 2;
         }
     }
 
     return 3;
 }
+
 
 int get(char *key, char *res) {
     for (int i = 0; i < storelength; i++) {
@@ -74,3 +79,5 @@ int del(char *key) {
     }
     return -1;
 }
+
+

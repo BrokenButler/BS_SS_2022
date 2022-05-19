@@ -1,7 +1,3 @@
-//
-// Created by BrokenButler on 02/04/2022.
-//
-
 #include "hashTable.h"
 #include <stdlib.h>
 #include <string.h>
@@ -12,13 +8,7 @@ struct Ht_item {
     Ht_item *next;
 };
 
-struct Ht_table {
-    Ht_item **items;
-    int size;
-    int count;
 
-    unsigned long (*hash_function)(char *, unsigned long);
-};
 
 Ht_item *ht_create_item(char *key, void *data) {
     Ht_item *item = (Ht_item *) malloc(sizeof(Ht_item));

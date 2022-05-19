@@ -1,7 +1,3 @@
-//
-// Created by BrokenButler on 02/04/2022.
-//
-
 #include "fnv.h"
 #include <inttypes.h>
 

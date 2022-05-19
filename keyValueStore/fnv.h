@@ -1,7 +1,3 @@
-//
-// Created by BrokenButler on 02/04/2022.
-//
-
 #ifndef BS_SS_2022_FNV_H
 #define BS_SS_2022_FNV_H
 

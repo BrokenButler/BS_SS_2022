@@ -1,26 +1,38 @@
-#include "server.h"
+#include "sub.h"
 
-int readcommand(char *input, struct kvp *command) {
-    memset(command, 0, sizeof(struct kvp));
+char key[20];
+char val[20];
 
-    char *delimiter = " ,:";
+char NUMCLIENTSSTR[5];
 
-    char *token = strtok(input, delimiter);
+char message[50];
+struct sembuf semaphore;
+static int sem_id;
+
+
+int readcommand(char *input) {
+    memset(&key[0], 0, sizeof(key));  //Key und Value werden geleert
+    memset(&val[0], 0, sizeof(val));
+
+    char delimiter[] = " ,:";
+    char *ptr;
+
+    ptr = strtok(input, delimiter);
 
     int counter = 0;
-    while (token != NULL) {
+    while (ptr != NULL) {
         if (counter == 1) {
-            strcpy(command->key, token);
+            strcpy(key, ptr);
         } else if (counter == 2) {
-            strcpy(command->value, token);
+            strcpy(val, ptr);
         }
         counter++;
 
-        token = strtok(NULL, delimiter);
+        ptr = strtok(NULL, delimiter);
     }
 
-    command->key[strcspn(command->key, "\r\n")] = 0;
-    command->value[strcspn(command->value, "\r\n")] = 0;
+    key[strcspn(key, "\r\n")] = 0;
+    val[strcspn(val, "\r\n")] = 0;
 
     return 0;
 
@@ -32,7 +44,7 @@ void sendMessage(int clientSock, char *message, size_t messageLength) {
 }
 
 int init_semaphore() {
-    int sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0644);
+    sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0644);
     if (sem_id < 0) {
         perror("Creating semaphore failed");
         return -1;
@@ -45,12 +57,11 @@ int init_semaphore() {
     return sem_id;
 }
 
-void startService() {
 
-    char NUM_CLIENTS[10];
+void startsocket() {
 
-    int sem_id = init_semaphore();
-    init_store();  //KeyValStore wird initialisiert
+    init_semaphore();
+    initialize();  //KeyValStore wird initialisiert
 
     int shm_id, shm_id_transblock, shm_id_blockingclient, shm_id_notify, *shm_count, shm_count_id;    //Shared Memory Segment wird angelegt // count neu für Aufgabe 5
     struct keyval *shar_mem;
@@ -82,7 +93,7 @@ void startService() {
 
     struct sockaddr_in client; // Socketadresse eines Clients
     socklen_t client_len; // Länge der Client-Daten
-    char input[BUFSIZE]; // Daten vom Client an den Server
+    char in[BUFSIZE]; // Daten vom Client an den Server
     int bytes_read; // Anzahl der Bytes, die der Client geschickt hat
 
 
@@ -97,8 +108,8 @@ void startService() {
     int option = 1;
     setsockopt(rfd, SOL_SOCKET, SO_REUSEADDR, (const void *) &option, sizeof(int));
 
-    printf("Socket created.\n");
-    printf("Starting Server on port %i\n", PORT);
+    printf("Socket erstellt.\n");
+    printf("Starte Server auf Port %i\n", PORT);
 
     // Socket binden
     struct sockaddr_in server;
@@ -107,37 +118,39 @@ void startService() {
     server.sin_port = htons(PORT);
     int brt = bind(rfd, (struct sockaddr *) &server, sizeof(server));
     if (brt < 0) {
-        fprintf(stderr, "Unable to bind socket\n");
+        fprintf(stderr, "socket konnte nicht gebunden werden\n");
         exit(-1);
     }
 
     // Socket lauschen lassen
-    int lrt = listen(rfd, 10);
+    int lrt = listen(rfd, 5);
     if (lrt < 0) {
-        fprintf(stderr, "Socket could not listen\n");
+        fprintf(stderr, "socket konnte nicht listen gesetzt werden\n");
         exit(-1);
     }
 
     // Verbindung eines Clients wird entgegengenommen
     Listen:
-    printf("Waiting for clients...\n");
-    printf("Client %i\n", *shm_count);
+    printf("Warte auf eingehende Verbindungen...\n");
+    printf("Client %i\n",
+           *shm_count); //Für Aufgabe 5 - Zeigt an, der wie vielte Client sich gerade verbindet *nicht notwendig*
     int c = sizeof(struct sockaddr_in);
-    //Zustand blockiert, da auf User input (verbinden des Clients) gewartet wird
-    cfd = accept(rfd, (struct sockaddr *) &client, (socklen_t *) &c);
-    *shm_count = *shm_count + 1;
+    cfd = accept(rfd, (struct sockaddr *) &client,
+                 (socklen_t *) &c); //Zustand blockiert, da auf User input (verbinden des Clients) gewartet wird
+    *shm_count = *shm_count + 1; /**Für Aufgabe 5**/ // Wird hochgezählt, sobald sich ein Client verbindet
 
 
     int pid = fork();
     if (pid < 0) {
-        *shm_count = *shm_count - 1;
-        printf("Failed to fork. Could not create new process.\n");
+        *shm_count = *shm_count -
+                     1; /**Für Aufgabe 5**/ // Solle es einen Fehler geben, wird der zuvor erhöhte Counter wieder runtergezählt
+        printf("Fork fehlgeschlagen. Konnte keinen neuen Prozess für den Client erstellen.");
         close(cfd);
         close(rfd);
     } else if (pid == 0) {
 
         if (cfd < 0) {
-            perror("Connection failed.\n");
+            perror("Konnte Client-Verbindung nicht akzeptieren.");
             exit(1);
         }
 
@@ -154,18 +167,15 @@ void startService() {
         }
 
 
-        while (1) {
-
-            char message[100];
-            memset(message, 0, sizeof(message));
+        while (ENDLOSSCHLEIFE) {
 
             // Lesen von Daten, die der Client schickt
-            bzero(input, BUFSIZE);
+            bzero(in, BUFSIZE);
             //Zustand blockiert, da auf USER Input gewartet wird
-            bytes_read = read(cfd, input, BUFSIZE);
+            bytes_read = read(cfd, in, BUFSIZE);
 
             struct sembuf enter, leave; // Structs für den Semaphor
-            enter.sem_num = leave.sem_num = 0;  // Semaphor 0 input der Gruppe
+            enter.sem_num = leave.sem_num = 0;  // Semaphor 0 in der Gruppe
             enter.sem_flg = leave.sem_flg = SEM_UNDO;
             enter.sem_op = -1; // blockieren, DOWN-Operation
             leave.sem_op = 1;   // freigeben, UP-Operation
@@ -174,21 +184,23 @@ void startService() {
 
             if (bytes_read > 0) {
 
-                if (*transactionblock == 0 || cfd == *blockingclient) {
+                if (*transactionblock == 0 ||
+                    cfd == *blockingclient) { //Zustand blockiert, wenn BEG bei anderem Client gemacht wurde
 
-                    struct kvp *kvp;
-                    memset(kvp, 0, sizeof(struct kvp));
+                    if (strncmp("NUMCLIENTS", in, 10) == 0) { /**Für Aufgabe 5**/
+                        sprintf(NUMCLIENTSSTR, "%i",
+                                *shm_count); //Der Integerwert von shm_count wird in einen String überschrieben
+                        memset(&message[0], 0,
+                               sizeof(message));   //Ein leerer String zum füllen - Für Formatierung / Schönheit
+                        strncat(message, NUMCLIENTSSTR,
+                                strlen(NUMCLIENTSSTR)); //leerer String wird mit dem String der Anzahl der Clients gefüllt
+                        strncat(message, "\n", 1); //Für neue Zeile
+                        sendMessage(cfd, message,
+                                    strlen(message)); //Der zusammengesetzte String wird and den Client gesendet
 
-                    if (strncmp("NUMCLIENTS", input, 10) == 0) {
-                        sprintf(NUM_CLIENTS, "%i", *shm_count);
-                        memset(&message[0], 0, sizeof(message));
-                        strncat(message, NUM_CLIENTS, strlen(NUM_CLIENTS));
-                        strncat(message, "\n", 1);
-                        sendMessage(cfd, message, strlen(message));
-
-                    } else if (strncmp("QUIT", input, 4) == 0) {
+                    } else if (strncmp("QUIT", in, 4) == 0) {
                         *shm_count = *shm_count -
-                                     1;
+                                     1; /**Für Aufgabe 5**/ // - Sobald jemand die Verbindung beendet, wird der Counter runtergezählt
                         printf("Socket wird geschlossen...\n");
                         sendMessage(cfd, "Socket wird geschlossen\n", 24);
                         shutdown(cfd, SHUT_RDWR);
@@ -196,37 +208,37 @@ void startService() {
                         fflush(stdout);
                         exit(0);
 
-                    } else if (strncmp("GET", input, 3) == 0) {
-                        readcommand(input, kvp);
+                    } else if (strncmp("GET", in, 3) == 0) {
+                        readcommand(in);
                         char *res[40];
                         memset(res[0], 0, sizeof(res)); //result wird gelöscht
                         //semop(sem_id, &enter, 1); //KB 04 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil e)
-                        printf("Return-Code: %i \n", get(kvp->key, *res));
+                        printf("Return-Code: %i \n", get(key, *res));
                         //semop(sem_id, &leave, 1); //KB 04 Ende - Verbesserungsvorschlag Aufgabe 4 Teil e)
-                        printf("GET:%s:%s \n", kvp->key, *res);
+                        printf("GET:%s:%s \n", key, *res);
 
                         memset(&message[0], 0, sizeof(message));
                         strncat(message, "GET:",
                                 6);                                                                //Message an den Client wird gebaut
-                        strncat(message, kvp->key, 20);
+                        strncat(message, key, 20);
                         strncat(message, ":", 1);
                         strncat(message, *res, 20);
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
 
-                    } else if (strncmp("PUT", input, 3) == 0) {
-                        readcommand(input, kvp);
+                    } else if (strncmp("PUT", in, 3) == 0) {
+                        readcommand(in);
                         //semop(sem_id, &enter, 1); //KB 02 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil d)
-                        printf("%d\n", put(kvp->key, kvp->value));
+                        printf("%d\n", put(key, val));
                         //semop(sem_id, &leave, 1); //KB 02 Ende - Verbesserungsvorschlag Aufgabe 4 Teil d)
-                        printf("PUT:%s:%s\n", kvp->key, kvp->value);
+                        printf("PUT:%s:%s\n", key, val);
 
                         memset(&message[0], 0, sizeof(message));
                         strncat(message, "PUT:", 6);
-                        strncat(message, kvp->key, 30);
+                        strncat(message, key, 30);
                         strncat(message, ":", 1);
-                        strncat(message, kvp->value, 30);
+                        strncat(message, val, 30);
                         strncat(message, "\n", 1);
                         sendMessage(cfd, message, strlen(message));
 
@@ -235,17 +247,17 @@ void startService() {
 
 
 
-                    } else if (strncmp("DEL", input, 3) == 0) {
-                        readcommand(input, kvp);
+                    } else if (strncmp("DEL", in, 3) == 0) {
+                        readcommand(in);
 
                         memset(&message[0], 0, sizeof(message));
                         strncat(message, "DEL:", 6);
-                        strncat(message, kvp->key, 20);
+                        strncat(message, key, 20);
                         strncat(message, ":", 1);
                         //semop(sem_id, &enter, 1); //KB 03 Anfang - Verbesserungsvorschlag Aufgabe 4 Teil d)
-                        if (del(kvp->key) == 0) {
+                        if (del(key) == 0) {
                             strncat(message, "key_deleted", 11);
-                            printf("key %s Deleted\n", kvp->key);
+                            printf("Key %s Deleted\n", key);
                         } else {
                             strncat(message, "key_nonexistent", 16);
                         }
@@ -256,15 +268,15 @@ void startService() {
 
                         msgsnd(msid, message, strlen(message), 0);
 
-                    } else if (strncmp("SUB", input, 3) == 0) {
-                        readcommand(input, kvp);
+                    } else if (strncmp("SUB", in, 3) == 0) {
+                        readcommand(in);
 
                         for (int i = 0; i < 20; i++) {
                             if ((strcmp(subbedkeys[i].key, "*") == 0)) {
-                                strcpy(subbedkeys[i].key, kvp->key);
+                                strcpy(subbedkeys[i].key, key);
                                 memset(&message[0], 0, sizeof(message));
                                 strncat(message, "SUB:", 6);
-                                strncat(message, kvp->key, 20);
+                                strncat(message, key, 20);
                                 strncat(message, "\n", 1);
                                 sendMessage(cfd, message, strlen(message));
                                 break;
@@ -274,16 +286,16 @@ void startService() {
                         char notification[50];
                         int subPid = fork();  //Neuer Prozess, welcher überwacht, ob an abonnierten Keys Änderungen vorgenommen werden
                         if (subPid == 0) {
-                            while (1) {
+                            while (ENDLOSSCHLEIFE) {
                                 int receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
                                 char subcommand[50];
                                 strcpy(subcommand, notification);
-                                readcommand(notification, kvp);
+                                readcommand(notification);
 
 
                                 if (receive >= 0) {
                                     for (int i = 0; i < 20; i++) {
-                                        if (strcmp(subbedkeys[i].key, kvp->key) == 0) {
+                                        if (strcmp(subbedkeys[i].key, key) == 0) {
                                             sendMessage(cfd, subcommand, strlen(subcommand));
                                         }
                                     }
@@ -292,11 +304,11 @@ void startService() {
                             }
                         }
 
-                    } else if (strncmp("BEG", input, 3) == 0) {
+                    } else if (strncmp("BEG", in, 3) == 0) {
                         *transactionblock = 1;
                         *blockingclient = cfd;
                         sendMessage(cfd, "Begin Transaction\n", 18);
-                    } else if (strncmp("END", input, 3) == 0) {
+                    } else if (strncmp("END", in, 3) == 0) {
                         *transactionblock = 0;
                         *blockingclient = 0;
                         sendMessage(cfd, "Transaction ended\n", 18);
@@ -324,3 +336,7 @@ void startService() {
     close(rfd);
     exit(0);
 }
+
+
+
+
