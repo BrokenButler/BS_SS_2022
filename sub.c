@@ -104,15 +104,15 @@ void startsocket() {
     // Socket erstellen
     rfd = socket(AF_INET, SOCK_STREAM, 0);
     if (rfd < 0) {
-        fprintf(stderr, "socket konnte nicht erstellt werden\n");
+        fprintf(stderr, "Could not create socket\n");
         exit(-1);
     }
 
     int option = 1;
     setsockopt(rfd, SOL_SOCKET, SO_REUSEADDR, (const void *) &option, sizeof(int));
 
-    printf("Socket erstellt.\n");
-    printf("Starte Server auf Port %i\n", PORT);
+    printf("Socket created.\n");
+    printf("Starting server on port %i\n", PORT);
 
     // Socket binden
     struct sockaddr_in server;
@@ -121,226 +121,226 @@ void startsocket() {
     server.sin_port = htons(PORT);
     int brt = bind(rfd, (struct sockaddr *) &server, sizeof(server));
     if (brt < 0) {
-        fprintf(stderr, "socket konnte nicht gebunden werden\n");
+        fprintf(stderr, "Could not bind socket\n");
         exit(-1);
     }
 
     // Socket lauschen lassen
     int lrt = listen(rfd, 5);
     if (lrt < 0) {
-        fprintf(stderr, "socket konnte nicht listen gesetzt werden\n");
+        fprintf(stderr, "Socket failed to listen\n");
         exit(-1);
     }
 
     // Verbindung eines Clients wird entgegengenommen
-    Listen:
-    printf("Warte auf eingehende Verbindungen...\n");
-    printf("Client %i\n", *shm_count);
-    int c = sizeof(struct sockaddr_in);
-    cfd = accept(rfd, (struct sockaddr *) &client,
-                 (socklen_t *) &c);
-    *shm_count = *shm_count + 1;
+    while (TRUE) {
+        printf("Waiting on connections...\n");
+        printf("Client %i\n", *shm_count);
+        int c = sizeof(struct sockaddr_in);
+        cfd = accept(rfd, (struct sockaddr *) &client,
+                     (socklen_t *) &c);
+        *shm_count = *shm_count + 1;
 
 
-    int pid = fork();
-    if (pid < 0) {
-        *shm_count = *shm_count - 1;
-        printf("Fork fehlgeschlagen. Konnte keinen neuen Prozess für den Client erstellen.");
-        close(cfd);
-        close(rfd);
-    } else if (pid == 0) {
+        int pid = fork();
+        if (pid < 0) {
+            *shm_count = *shm_count - 1;
+            printf("Fork failed. Could not create child process.\n");
+            close(cfd);
+            close(rfd);
+        } else if (pid == 0) {
 
-        if (cfd < 0) {
-            perror("Konnte Client-Verbindung nicht akzeptieren.");
-            exit(1);
-        }
+            if (cfd < 0) {
+                perror("Could not accept connection.\n");
+                exit(1);
+            }
 
-        /*------------Subscribed Keys-------------*/
-        struct pubsubkey {
-            char key[100];
-        };
+            /*------------Subscribed Keys-------------*/
+            struct pubsubkey {
+                char key[100];
+            };
 
-        struct pubsubkey subbedkeys[100];
+            struct pubsubkey subbedkeys[100];
 
-        for (int i = 0; i < 20; i++) {
-            strcpy(subbedkeys[i].key, "*");
-        }
-
-
-        while (TRUE) {
-
-            bzero(input, BUFSIZE);
-            bytes_read = read(cfd, input, BUFSIZE);
-
-            struct sembuf enter, leave;
-            enter.sem_num = leave.sem_num = 0;
-            enter.sem_flg = leave.sem_flg = SEM_UNDO;
-            enter.sem_op = -1;
-            leave.sem_op = 1;
-
-            if (bytes_read > 0) {
-
-                if (*transactionblock == 0 ||
-                    cfd == *blockingclient) {
-
-                    if (strncmp("NUMCLIENTS", stoupper(input), 10) == 0) {
-                        char num_clients_str[5];
-                        sprintf(num_clients_str, "%i", *shm_count);
-                        char message[100];
-                        memset(message, 0, sizeof(message));
-                        strncat(message, num_clients_str, strlen(num_clients_str));
-                        strncat(message, "\n", 1);
-                        sendMessage(cfd, message, strlen(message));
-
-                    } else if (strncmp("QUIT", stoupper(input), 4) == 0) {
-                        *shm_count = *shm_count - 1;
-                        printf("Socket wird geschlossen...\n");
-                        sendMessage(cfd, "Socket wird geschlossen\n", 24);
-                        shutdown(cfd, SHUT_RDWR);
-                        close(cfd);
-                        fflush(stdout);
-                        exit(0);
-
-                        /*} else if (strncmp("KILL", stoupper(input), 4) == 0) {
-                            put("kill", "kill");*/
-                    } else if (strncmp("GET", stoupper(input), 3) == 0) {
-                        struct keyval *kvp = malloc(sizeof(struct keyval));
-                        readcommand(input, kvp);
-                        char res[100];
-                        semop(sem_id, &enter, 1);
-                        printf("Return-Code: %i \n", get(kvp->key, res));
-                        semop(sem_id, &leave, 1);
-                        printf("GET:%s:%s \n", kvp->key, res);
-
-                        char message[100];
-                        memset(message, 0, sizeof(message));
-                        strncat(message, "GET:", 6);
-                        strncat(message, kvp->key, 100);
-                        strncat(message, ":", 1);
-                        strncat(message, res, 100);
-                        strncat(message, "\n", 1);
-                        sendMessage(cfd, message, strlen(message));
+            for (int i = 0; i < 20; i++) {
+                strcpy(subbedkeys[i].key, "*");
+            }
 
 
-                    } else if (strncmp("PUT", stoupper(input), 3) == 0) {
-                        struct keyval *kvp = malloc(sizeof(struct keyval));
-                        readcommand(input, kvp);
-                        semop(sem_id, &enter, 1);
-                        printf("%d\n", put(kvp->key, kvp->val));
-                        semop(sem_id, &leave, 1);
-                        printf("PUT:%s:%s\n", kvp->key, kvp->val);
+            while (TRUE) {
 
-                        char message[100];
-                        memset(message, 0, sizeof(message));
-                        strncat(message, "PUT:", 6);
-                        strncat(message, kvp->key, 100);
-                        strncat(message, ":", 1);
-                        strncat(message, kvp->val, 100);
-                        strncat(message, "\n", 1);
-                        sendMessage(cfd, message, strlen(message));
+                bzero(input, BUFSIZE);
+                bytes_read = read(cfd, input, BUFSIZE);
 
-                        msgsnd(msid, message, strlen(message), 0);
+                struct sembuf enter, leave;
+                enter.sem_num = leave.sem_num = 0;
+                enter.sem_flg = leave.sem_flg = SEM_UNDO;
+                enter.sem_op = -1;
+                leave.sem_op = 1;
+
+                if (bytes_read > 0) {
+
+                    if (*transactionblock == 0 ||
+                        cfd == *blockingclient) {
+
+                        if (strncmp("NUMCLIENTS", stoupper(input), 10) == 0) {
+                            char num_clients_str[5];
+                            sprintf(num_clients_str, "%i", *shm_count);
+                            char message[100];
+                            memset(message, 0, sizeof(message));
+                            strncat(message, num_clients_str, strlen(num_clients_str));
+                            strncat(message, "\n", 1);
+                            sendMessage(cfd, message, strlen(message));
+
+                        } else if (strncmp("QUIT", stoupper(input), 4) == 0) {
+                            *shm_count = *shm_count - 1;
+                            printf("Closing socket...\n");
+                            sendMessage(cfd, "Closing socket...\n", 24);
+                            shutdown(cfd, SHUT_RDWR);
+                            close(cfd);
+                            fflush(stdout);
+                            exit(0);
+
+                            /*} else if (strncmp("KILL", stoupper(input), 4) == 0) {
+                                put("kill", "kill");*/
+                        } else if (strncmp("GET", stoupper(input), 3) == 0) {
+                            struct keyval *kvp = malloc(sizeof(struct keyval));
+                            readcommand(input, kvp);
+                            char res[100];
+                            semop(sem_id, &enter, 1);
+                            printf("Return-Code: %i \n", get(kvp->key, res));
+                            semop(sem_id, &leave, 1);
+                            printf("GET:%s:%s \n", kvp->key, res);
+
+                            char message[100];
+                            memset(message, 0, sizeof(message));
+                            strncat(message, "GET:", 6);
+                            strncat(message, kvp->key, 100);
+                            strncat(message, ":", 1);
+                            strncat(message, res, 100);
+                            strncat(message, "\n", 1);
+                            sendMessage(cfd, message, strlen(message));
 
 
-                    } else if (strncmp("DEL", stoupper(input), 3) == 0) {
-                        struct keyval *kvp = malloc(sizeof(struct keyval));
-                        readcommand(input, kvp);
+                        } else if (strncmp("PUT", stoupper(input), 3) == 0) {
+                            struct keyval *kvp = malloc(sizeof(struct keyval));
+                            readcommand(input, kvp);
+                            semop(sem_id, &enter, 1);
+                            printf("%d\n", put(kvp->key, kvp->val));
+                            semop(sem_id, &leave, 1);
+                            printf("PUT:%s:%s\n", kvp->key, kvp->val);
 
-                        char message[100];
-                        memset(message, 0, sizeof(message));
-                        strncat(message, "DEL:", 6);
-                        strncat(message, kvp->key, 100);
-                        strncat(message, ":", 1);
-                        semop(sem_id, &enter, 1);
-                        if (del(kvp->key) == 0) {
-                            strncat(message, "key_deleted", 11);
-                            printf("Key %s Deleted\n", kvp->key);
-                        } else {
-                            strncat(message, "key_nonexistent", 16);
-                        }
-                        semop(sem_id, &leave, 1);
+                            char message[100];
+                            memset(message, 0, sizeof(message));
+                            strncat(message, "PUT:", 6);
+                            strncat(message, kvp->key, 100);
+                            strncat(message, ":", 1);
+                            strncat(message, kvp->val, 100);
+                            strncat(message, "\n", 1);
+                            sendMessage(cfd, message, strlen(message));
 
-                        strncat(message, "\n", 1);
-                        sendMessage(cfd, message, strlen(message));
+                            msgsnd(msid, message, strlen(message), 0);
 
-                        msgsnd(msid, message, strlen(message), 0);
 
-                    } else if (strncmp("SUB", stoupper(input), 3) == 0) {
-                        struct keyval *kvp = malloc(sizeof(struct keyval));
-                        readcommand(input, kvp);
+                        } else if (strncmp("DEL", stoupper(input), 3) == 0) {
+                            struct keyval *kvp = malloc(sizeof(struct keyval));
+                            readcommand(input, kvp);
 
-                        for (int i = 0; i < 100; i++) {
-                            if ((strcmp(subbedkeys[i].key, "*") == 0)) {
-                                strcpy(subbedkeys[i].key, kvp->key);
-
-                                char message[100];
-                                memset(message, 0, sizeof(message));
-                                strncat(message, "SUB:", 6);
-                                strncat(message, kvp->key, 100);
-                                strncat(message, "\n", 1);
-                                sendMessage(cfd, message, strlen(message));
-                                break;
+                            char message[100];
+                            memset(message, 0, sizeof(message));
+                            strncat(message, "DEL:", 6);
+                            strncat(message, kvp->key, 100);
+                            strncat(message, ":", 1);
+                            semop(sem_id, &enter, 1);
+                            if (del(kvp->key) == 0) {
+                                strncat(message, "key_deleted", 11);
+                                printf("Key %s Deleted\n", kvp->key);
+                            } else {
+                                strncat(message, "key_nonexistent", 16);
                             }
-                        }
+                            semop(sem_id, &leave, 1);
 
-                        char notification[100];
-                        int subPid = fork();
-                        if (subPid == 0) {
-                            while (TRUE) {
-                                int receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
-                                char subcommand[100];
-                                strcpy(subcommand, notification);
-                                struct keyval *kvp = malloc(sizeof(struct keyval));
-                                readcommand(notification, kvp);
+                            strncat(message, "\n", 1);
+                            sendMessage(cfd, message, strlen(message));
 
+                            msgsnd(msid, message, strlen(message), 0);
 
-                                if (receive >= 0) {
-                                    for (int i = 0; i < 100; i++) {
-                                        if (strcmp(subbedkeys[i].key, kvp->key) == 0) {
-                                            sendMessage(cfd, subcommand, strlen(subcommand));
-                                        }
-                                    }
+                        } else if (strncmp("SUB", stoupper(input), 3) == 0) {
+                            struct keyval *kvp = malloc(sizeof(struct keyval));
+                            readcommand(input, kvp);
 
+                            for (int i = 0; i < 100; i++) {
+                                if ((strcmp(subbedkeys[i].key, "*") == 0)) {
+                                    strcpy(subbedkeys[i].key, kvp->key);
+
+                                    char message[100];
+                                    memset(message, 0, sizeof(message));
+                                    strncat(message, "SUB:", 6);
+                                    strncat(message, kvp->key, 100);
+                                    strncat(message, "\n", 1);
+                                    sendMessage(cfd, message, strlen(message));
+                                    break;
                                 }
                             }
+
+                            char notification[100];
+                            int subPid = fork();
+                            if (subPid == 0) {
+                                while (TRUE) {
+                                    int receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
+                                    char subcommand[100];
+                                    strcpy(subcommand, notification);
+                                    struct keyval *subkvp = malloc(sizeof(struct keyval));
+                                    readcommand(notification, subkvp);
+
+
+                                    if (receive >= 0) {
+                                        for (int i = 0; i < 100; i++) {
+                                            if (strcmp(subbedkeys[i].key, subkvp->key) == 0) {
+                                                sendMessage(cfd, subcommand, strlen(subcommand));
+                                            }
+                                        }
+
+                                    }
+                                }
+                            }
+
+                        } else if (strncmp("BEG", stoupper(input), 3) == 0) {
+                            *transactionblock = 1;
+                            *blockingclient = cfd;
+                            sendMessage(cfd, "Begin Transaction.\n", 18);
+                        } else if (strncmp("END", stoupper(input), 3) == 0) {
+                            *transactionblock = 0;
+                            *blockingclient = 0;
+                            sendMessage(cfd, "Transaction ended.\n", 18);
+                        } else {
+                            sendMessage(cfd, "Unknown Command.\n", 16);
                         }
-
-                    } else if (strncmp("BEG", stoupper(input), 3) == 0) {
-                        *transactionblock = 1;
-                        *blockingclient = cfd;
-                        sendMessage(cfd, "Begin Transaction\n", 18);
-                    } else if (strncmp("END", stoupper(input), 3) == 0) {
-                        *transactionblock = 0;
-                        *blockingclient = 0;
-                        sendMessage(cfd, "Transaction ended\n", 18);
                     } else {
-                        sendMessage(cfd, "Unknown Command\n", 16);
+                        sendMessage(cfd, "You are blocked right now.\n", 26);
                     }
-                } else {
-                    sendMessage(cfd, "You are blocked right now\n", 26);
                 }
             }
-        }
-    } else {
-        /*for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (child_pids[i] == 0) {
-                child_pids[i] = pid;
-                break;
-            }
-        }
-
-        char *response = malloc(sizeof(char) * 100);
-        if (get("kill", response) == 0) {
-            for (int j = 0; j < MAX_CLIENTS; j++) {
-                if (child_pids[j] == 0){
-                    continue;
+        } else {
+            /*for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (child_pids[i] == 0) {
+                    child_pids[i] = pid;
+                    break;
                 }
-                kill(child_pids[j], SIGTERM);
             }
-            goto Exit;
-        }*/
 
-        goto Listen;
+            char *response = malloc(sizeof(char) * 100);
+            if (get("kill", response) == 0) {
+                for (int j = 0; j < MAX_CLIENTS; j++) {
+                    if (child_pids[j] == 0){
+                        continue;
+                    }
+                    kill(child_pids[j], SIGTERM);
+                }
+                goto Exit;
+            }*/
+
+        }
     }
 
     Exit:
