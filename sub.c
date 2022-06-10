@@ -286,6 +286,13 @@ void startsocket() {
                             char notification[100];
                             int subPid = fork();
                             if (subPid == 0) {
+                                // clear the messages from before the subscription
+                                int receive = 1;
+                                while (receive > 0) {
+                                    receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
+                                }
+                                memset(notification, 0, sizeof(notification));
+
                                 while (TRUE) {
                                     int receive = msgrcv(msid, &notification, sizeof(notification), 0, IPC_NOWAIT);
                                     char subcommand[100];
@@ -300,11 +307,9 @@ void startsocket() {
                                                 sendMessage(cfd, subcommand, strlen(subcommand));
                                             }
                                         }
-
                                     }
                                 }
                             }
-
                         } else if (strncmp("BEG", stoupper(input), 3) == 0) {
                             *transactionblock = 1;
                             *blockingclient = cfd;
